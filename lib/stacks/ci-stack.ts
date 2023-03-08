@@ -4,7 +4,7 @@ import { getEnv } from '../app/utils';
 import * as codepipeline from 'aws-cdk-lib/aws-codepipeline';
 import * as actions from 'aws-cdk-lib/aws-codepipeline-actions';
 import * as codebuild from 'aws-cdk-lib/aws-codebuild';
-import * as pipelines from 'aws-cdk-lib/pipelines';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import { ApplicationStackName } from './constants';
 
 export class CiStack extends cdk.Stack {
@@ -16,7 +16,7 @@ export class CiStack extends cdk.Stack {
 
     // Define the pipeline
     const sourceOutput = new codepipeline.Artifact(`${applicationName}-code-${stage}`);
-    const cdkBuildOutput = new codepipeline.Artifact(`${applicationName}-build-output-${stage}`);
+    //const cdkBuildOutput = new codepipeline.Artifact(`${applicationName}-build-output-${stage}`);
 
     const pipeline = new codepipeline.Pipeline(this, 'pipeline', {
       pipelineName: `${applicationName}-${stage}`,
@@ -37,48 +37,70 @@ export class CiStack extends cdk.Stack {
       ]
     })
 
+    const deployRole = new iam.Role(this, 'role', {
+      assumedBy: new iam.ServicePrincipal('codebuild.amazonaws.com'),
+      roleName: `${applicationName}-ci-${stage}`,
+      description: `deploys ${applicationName} at ${stage}`,
+    })
+
+    deployRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: [
+          'cloudformation:CreateStack',
+          'cloudformation:UpdateStack',
+          'cloudformation:DescribeStacks',
+          'cloudformation:DeleteStack',
+          'cloudformation:CreateChangeSet',
+          'cloudformation:DescribeChangeSet',
+          'cloudformation:ExecuteChangeSet',
+          'cloudformation:ValidateTemplate',
+        ],
+        resources: [`arn:aws:cloudformation:${this.region}:${this.account}:stack/*`], // Replace with specific resource ARNs as needed
+      }))
+
+    const buildProject = new actions.CodeBuildAction({
+      actionName: 'build',
+      project: new codebuild.PipelineProject(this, 'build-project', {
+        projectName: `${applicationName}-${stage}`,
+        role: deployRole,
+        environment: {
+          buildImage: codebuild.LinuxBuildImage.AMAZON_LINUX_2_4
+        },
+        environmentVariables: {
+          AWS_ACCOUNT: { value: this.account },
+          AWS_REGION: { value: this.region },
+          APPLICATION: { value: getEnv('APPLICATION') },
+          STAGE: { value: getEnv('STAGE') },
+          PIPE_DRIVE_API_KEY: {
+            value: getEnv('PIPE_DRIVE_API_KEY'),
+            type: codebuild.BuildEnvironmentVariableType.PLAINTEXT
+          },
+          PIPE_DRIVE_API_URL: { value: getEnv('PIPE_DRIVE_API_URL') },
+          GITHUB_REPO: { value: getEnv('GITHUB_REPO') },
+          GITHUB_OWNER: { value: getEnv('GITHUB_OWNER') },
+          CODESTAR_CONNECTION_ARN: { value: getEnv('CODESTAR_CONNECTION_ARN') },
+        },
+        buildSpec: codebuild.BuildSpec.fromObject({
+          version: '0.2',
+          phases: {
+            install: { commands: ['n 16', 'npm install'] },
+            build: { commands: [`npm run cdk deploy -- ${ApplicationStackName} --require-approval never`] }
+          },
+          // artifacts: {
+          //   'base-directory': 'dist',
+          //   files: [
+          //     `${StackName}.template.json`
+          //   ]
+          // }
+        })
+      }),
+      input: sourceOutput,
+      //outputs: [cdkBuildOutput]
+    })
+
     pipeline.addStage({
       stageName: 'Deploy',
-      actions: [
-        new actions.CodeBuildAction({
-          actionName: 'build',
-          project: new codebuild.PipelineProject(this, 'build-project', {
-            projectName: `${applicationName}-${stage}`,
-            environment: {
-              buildImage: codebuild.LinuxBuildImage.AMAZON_LINUX_2_4
-            },
-            environmentVariables: {
-              AWS_ACCOUNT: { value: this.account },
-              AWS_REGION: { value: this.region },
-              APPLICATION: { value: getEnv('APPLICATION') },
-              STAGE: { value: getEnv('STAGE') },
-              PIPE_DRIVE_API_KEY: {
-                value: getEnv('PIPE_DRIVE_API_KEY'),
-                type: codebuild.BuildEnvironmentVariableType.PLAINTEXT
-              },
-              PIPE_DRIVE_API_URL: { value: getEnv('PIPE_DRIVE_API_URL') },
-              GITHUB_REPO: { value: getEnv('GITHUB_REPO') },
-              GITHUB_OWNER: { value: getEnv('GITHUB_OWNER') },
-              CODESTAR_CONNECTION_ARN: { value: getEnv('CODESTAR_CONNECTION_ARN') },
-            },
-            buildSpec: codebuild.BuildSpec.fromObject({
-              version: '0.2',
-              phases: {
-                install: { commands: ['n 16', 'npm install'] },
-                build: { commands: [`npm run cdk deploy -- ${ApplicationStackName} --require-approval never`] }
-              },
-              // artifacts: {
-              //   'base-directory': 'dist',
-              //   files: [
-              //     `${StackName}.template.json`
-              //   ]
-              // }
-            })
-          }),
-          input: sourceOutput,
-          //outputs: [cdkBuildOutput]
-        })
-      ]
+      actions: [buildProject]
     })
 
     // pipeline.addStage({
