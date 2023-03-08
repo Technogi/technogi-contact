@@ -74,24 +74,11 @@ export class CiStack extends cdk.Stack {
       })
     })
 
-
     const buildAction = new actions.CodeBuildAction({
       actionName: 'build',
       project: buildProject,
       input: sourceOutput,
       //outputs: [cdkBuildOutput]
-    })
-
-    new cdk.CfnOutput(this, 'RoleB', {
-      value: buildProject?.role?.roleName || 'na'
-    })
-
-    new cdk.CfnOutput(this, 'RoleA', {
-      value: buildAction.actionProperties?.role?.roleName || 'na'
-    })
-
-    new cdk.CfnOutput(this, 'RoleP', {
-      value: pipeline.role?.roleName
     })
 
     pipeline.addStage({
@@ -187,6 +174,13 @@ export class CiStack extends cdk.Stack {
       resources: [
         `arn:aws:s3:::${applicationName}-ci-${stage}-*`,
         `arn:aws:s3:::${applicationName}-ci-${stage}-*/*`
+      ]
+    }))
+
+    deployRole.addToPrincipalPolicy(new iam.PolicyStatement({
+      actions: ["iam:PassRole", "sts:AssumeRole"],
+      resources: [
+        `arn:aws:iam::${this.account}:role/cdk-hnb659fds-deploy-role-${this.account}-${this.region}`
       ]
     }))
 
