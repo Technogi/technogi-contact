@@ -44,6 +44,9 @@ export class CiStack extends cdk.Stack {
           actionName: 'build',
           project: new codebuild.PipelineProject(this, 'build-project', {
             projectName: `${applicationName}-${stage}`,
+            environment: {
+              buildImage: codebuild.LinuxBuildImage.AMAZON_LINUX_2_4
+            },
             environmentVariables: {
               AWS_ACCOUNT: { value: this.account },
               AWS_REGION: { value: this.region },
@@ -53,27 +56,15 @@ export class CiStack extends cdk.Stack {
                 value: getEnv('PIPE_DRIVE_API_KEY'),
                 type: codebuild.BuildEnvironmentVariableType.PLAINTEXT
               },
-              PIPE_DRIVE_API_URL: {
-                value: getEnv('PIPE_DRIVE_API_URL'),
-                type: codebuild.BuildEnvironmentVariableType.PLAINTEXT
-              },
-              GITHUB_REPO: {
-                value: getEnv('GITHUB_REPO'),
-                type: codebuild.BuildEnvironmentVariableType.PLAINTEXT
-              },
-              GITHUB_OWNER: {
-                value: getEnv('GITHUB_OWNER'),
-                type: codebuild.BuildEnvironmentVariableType.PLAINTEXT
-              },
-              CODESTAR_CONNECTION_ARN: {
-                value: getEnv('CODESTAR_CONNECTION_ARN'),
-                type: codebuild.BuildEnvironmentVariableType.PLAINTEXT
-              },
+              PIPE_DRIVE_API_URL: { value: getEnv('PIPE_DRIVE_API_URL') },
+              GITHUB_REPO: { value: getEnv('GITHUB_REPO') },
+              GITHUB_OWNER: { value: getEnv('GITHUB_OWNER') },
+              CODESTAR_CONNECTION_ARN: { value: getEnv('CODESTAR_CONNECTION_ARN') },
             },
             buildSpec: codebuild.BuildSpec.fromObject({
               version: '0.2',
               phases: {
-                install: { commands: ['npm install'] },
+                install: { commands: ['n 18', 'npm install'] },
                 build: { commands: [`npm run cdk deploy -- ${ApplicationStackName} --require-approval never`] }
               },
               // artifacts: {
