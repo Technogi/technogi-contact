@@ -5,8 +5,8 @@ import * as codepipeline from 'aws-cdk-lib/aws-codepipeline';
 import * as actions from 'aws-cdk-lib/aws-codepipeline-actions';
 import * as codebuild from 'aws-cdk-lib/aws-codebuild';
 import * as pipelines from 'aws-cdk-lib/pipelines';
+import { ApplicationStackName } from './constants';
 
-const StackName = 'TechnogiContactEndpointLambdaStack'
 export class CiStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -38,47 +38,73 @@ export class CiStack extends cdk.Stack {
     })
 
     pipeline.addStage({
-      stageName: 'Build',
+      stageName: 'Deploy',
       actions: [
         new actions.CodeBuildAction({
           actionName: 'build',
           project: new codebuild.PipelineProject(this, 'build-project', {
             projectName: `${applicationName}-${stage}`,
+            environmentVariables: {
+              AWS_ACCOUNT: { value: this.account },
+              AWS_REGION: { value: this.region },
+              APPLICATION: { value: getEnv('APPLICATION') },
+              STAGE: { value: getEnv('STAGE') },
+              PIPE_DRIVE_API_KEY: {
+                value: getEnv('PIPE_DRIVE_API_KEY'),
+                type: codebuild.BuildEnvironmentVariableType.PLAINTEXT
+              },
+              PIPE_DRIVE_API_URL: {
+                value: getEnv('PIPE_DRIVE_API_URL'),
+                type: codebuild.BuildEnvironmentVariableType.PLAINTEXT
+              },
+              GITHUB_REPO: {
+                value: getEnv('GITHUB_REPO'),
+                type: codebuild.BuildEnvironmentVariableType.PLAINTEXT
+              },
+              GITHUB_OWNER: {
+                value: getEnv('GITHUB_OWNER'),
+                type: codebuild.BuildEnvironmentVariableType.PLAINTEXT
+              },
+              CODESTAR_CONNECTION_ARN: {
+                value: getEnv('CODESTAR_CONNECTION_ARN'),
+                type: codebuild.BuildEnvironmentVariableType.PLAINTEXT
+              },
+            },
             buildSpec: codebuild.BuildSpec.fromObject({
               version: '0.2',
               phases: {
                 install: { commands: ['npm install'] },
-                build: { commands: ['npm run cdk synth -- -o dist'] }
+                build: { commands: [`npm run cdk deploy -- ${ApplicationStackName} --require-approval never`] }
               },
-              artifacts: {
-                'base-directory': 'dist',
-                files: [
-                  `${StackName}.template.json`
-                ]
-              }
+              // artifacts: {
+              //   'base-directory': 'dist',
+              //   files: [
+              //     `${StackName}.template.json`
+              //   ]
+              // }
             })
           }),
           input: sourceOutput,
-          outputs: [cdkBuildOutput]
+          //outputs: [cdkBuildOutput]
         })
       ]
     })
 
-    pipeline.addStage({
-      stageName: 'Deploy',
-      actions: [
-        new actions.CloudFormationCreateUpdateStackAction({
-          actionName: 'deploy',
-          templatePath: cdkBuildOutput.atPath(`${StackName}.template.json`),
-          stackName: StackName,
-          adminPermissions: true,
-          parameterOverrides: {
-            env: stage,
-          },
-          extraInputs: [sourceOutput],
-        }),
-      ]
-    })
+    // pipeline.addStage({
+    //   stageName: 'Deploy',
+    //   actions: [
+    //     new actions.CloudFormationCreateUpdateStackAction({
+    //       actionName: 'deploy',
+    //       templatePath: cdkBuildOutput.atPath(`${StackName}.template.json`),
+    //       stackName: StackName,
+    //       adminPermissions: true,
+    //       parameterOverrides: {
+    //         env: stage,
+    //       },
+    //       extraInputs: [sourceOutput],
+    //     }),
+    //   ]
+    // })
 
   }
 
