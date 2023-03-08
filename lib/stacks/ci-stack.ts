@@ -64,7 +64,7 @@ export class CiStack extends cdk.Stack {
             buildSpec: codebuild.BuildSpec.fromObject({
               version: '0.2',
               phases: {
-                install: { commands: ['n 18', 'npm install'] },
+                install: { commands: ['n 16', 'npm install'] },
                 build: { commands: [`npm run cdk deploy -- ${ApplicationStackName} --require-approval never`] }
               },
               // artifacts: {
