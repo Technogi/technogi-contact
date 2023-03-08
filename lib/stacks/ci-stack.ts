@@ -55,7 +55,10 @@ export class CiStack extends cdk.Stack {
           'cloudformation:ExecuteChangeSet',
           'cloudformation:ValidateTemplate',
         ],
-        resources: [`arn:aws:cloudformation:${this.region}:${this.account}:stack/*`], // Replace with specific resource ARNs as needed
+        resources: [
+          `arn:aws:cloudformation:${this.region}:${this.account}:stack/*`,
+          `arn:aws:cloudformation:${this.region}:${this.account}:stack/CDKToolkit/*`
+        ],
       }))
 
     const buildProject = new actions.CodeBuildAction({
@@ -102,6 +105,7 @@ export class CiStack extends cdk.Stack {
       stageName: 'Deploy',
       actions: [buildProject]
     })
+
 
     // pipeline.addStage({
     //   stageName: 'Deploy',
